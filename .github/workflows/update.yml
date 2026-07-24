@@ -1,0 +1,87 @@
+name: update-cursor-cli
+
+on:
+  schedule:
+    # GitHub Actions cron is UTC and ignores DST. Europe/Rome is CET (UTC+1) in
+    # winter and CEST (UTC+2) in summer, so a fixed UTC time drifts by one hour
+    # twice a year. To pin 07:00 and 13:00 Rome *year-round*, trigger at the
+    # four UTC slots whose Rome hour is 07 or 13 in either season, then let the
+    # guard step below skip the runs that land in the wrong hour for the current
+    # season.
+    #   05:00 UTC -> 07:00 Rome (summer) / 06:00 Rome (winter, skipped)
+    #   06:00 UTC -> 07:00 Rome (winter) / 08:00 Rome (summer, skipped)
+    #   11:00 UTC -> 13:00 Rome (summer) / 12:00 Rome (winter, skipped)
+    #   12:00 UTC -> 13:00 Rome (winter) / 14:00 Rome (summer, skipped)
+    - cron: '0 5,6,11,12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-cursor-cli
+  cancel-in-progress: true
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+    steps:
+      - name: Respect Europe/Rome schedule (07:00 / 13:00)
+        id: guard
+        run: |
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ]; then
+            hour="$(TZ=Europe/Rome date +%H)"
+            if [ "${hour}" != "07" ] && [ "${hour}" != "13" ]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              echo "Rome hour is ${hour}; skipping (only 07:00/13:00 run)."
+            else
+              echo "Running at Rome ${hour}:00."
+            fi
+          fi
+
+      - name: Install build dependencies
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          pacman -Sy --noconfirm archlinux-keyring
+          pacman -Syu --noconfirm --needed base-devel curl git
+
+      - name: Checkout
+        if: steps.guard.outputs.skip != 'true'
+        uses: actions/checkout@v4
+
+      - name: Refresh pinned release
+        if: steps.guard.outputs.skip != 'true'
+        run: |
+          chmod +x update.sh
+          ./update.sh
+
+      - name: Detect PKGBUILD change
+        if: steps.guard.outputs.skip != 'true'
+        id: detect
+        run: |
+          if git diff --quiet -- PKGBUILD; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No upstream change; nothing to commit."
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            echo "PKGBUILD changed."
+          fi
+
+      - name: Verify build (makepkg)
+        if: steps.guard.outputs.skip != 'true' && steps.detect.outputs.changed == 'true'
+        run: |
+          useradd -m builder
+          chown -R builder "$GITHUB_WORKSPACE"
+          su builder -c "cd '$GITHUB_WORKSPACE' && makepkg --noconfirm"
+
+      - name: Commit and push
+        if: steps.guard.outputs.skip != 'true' && steps.detect.outputs.changed == 'true'
+        run: |
+          ver="$(sed -nE "s/^_upstream_ver='([^']+)'$/\1/p" PKGBUILD)"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions-bot@users.noreply.github.com"
+          git add PKGBUILD
+          git commit -m "chore: bump cursor-cli to ${ver}"
+          git push
