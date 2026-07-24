@@ -12,7 +12,24 @@ die() {
   exit 1
 }
 
-for command_name in curl grep sed sort tar sha256sum mktemp; do
+# Remove Cursor CLI archives left over from prior pins, keeping only the one
+# the PKGBUILD references (the current release).
+prune_stale_archives() {
+  local keep="${1:?archive to retain}" f
+  shopt -s nullglob
+  local found=()
+  for f in "${script_dir}"/cursor-cli-*-x86_64.tar.gz; do
+    [[ "${f}" == "${keep}" ]] && continue
+    found+=("${f}")
+  done
+  shopt -u nullglob
+  if ((${#found[@]})); then
+    rm -f -- "${found[@]}"
+    printf 'Removed %d stale archive(s)\n' "${#found[@]}"
+  fi
+}
+
+for command_name in curl grep sed sort tar sha256sum mktemp rm; do
   command -v "${command_name}" >/dev/null 2>&1 || die "missing command: ${command_name}"
 done
 [[ -f "${pkgbuild}" ]] || die "PKGBUILD not found: ${pkgbuild}"
@@ -73,6 +90,7 @@ archive_path="${script_dir}/${archive_name}"
 if [[ "${upstream_ver}" == "${current_upstream}" && -f "${archive_path}" ]]; then
   local_sum="$(sha256sum "${archive_path}" | awk '{print $1}')"
   if [[ "${local_sum}" == "${current_sum}" ]]; then
+    prune_stale_archives "${archive_path}"
     printf 'Already at latest Cursor CLI release: %s\n' "${upstream_ver}"
     exit 0
   fi
@@ -119,6 +137,7 @@ grep -Fxq "sha256sums_x86_64=('${new_sum}')" "${updated_pkgbuild}" || die 'faile
 mv -f -- "${workdir}/${archive_name}" "${archive_path}"
 chmod --reference="${pkgbuild}" "${updated_pkgbuild}"
 mv -f -- "${updated_pkgbuild}" "${pkgbuild}"
+prune_stale_archives "${archive_path}"
 
 printf 'Pinned Cursor CLI %s as package version %s\n' "${upstream_ver}" "${new_pkgver}"
 printf 'SHA-256: %s\n' "${new_sum}"

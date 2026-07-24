@@ -37,7 +37,9 @@ makepkg -s
 
 `update.sh` downloads Cursor's installer **as text only**, extracts the release
 URL, downloads the x86_64 archive, validates its layout, and pins its checksum
-in `PKGBUILD`. It never executes the installer or the Cursor binary.
+in `PKGBUILD`. It never executes the installer or the Cursor binary. It also
+removes archives left over from previous pins, keeping only the one referenced
+by `PKGBUILD`.
 
 A PKGBUILD cannot safely be "always latest" at build time: a moving download
 would defeat checksum verification and reproducibility. The updater provides an
