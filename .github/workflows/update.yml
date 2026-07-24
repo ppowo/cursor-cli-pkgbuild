@@ -79,6 +79,9 @@ jobs:
       - name: Commit and push
         if: steps.guard.outputs.skip != 'true' && steps.detect.outputs.changed == 'true'
         run: |
+          # The makepkg step chowns the workspace to a non-root builder, so .git
+          # is no longer owned by root; let git accept it anyway (ephemeral CI).
+          git config --global --add safe.directory '*'
           ver="$(sed -nE "s/^_upstream_ver='([^']+)'$/\1/p" PKGBUILD)"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions-bot@users.noreply.github.com"
