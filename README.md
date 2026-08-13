@@ -28,6 +28,21 @@ sudo pacman -U cursor-cli-*.pkg.tar.zst
 This installs the self-contained payload under `/opt/cursor-agent` and exposes
 both `/usr/bin/agent` and `/usr/bin/cursor-agent`.
 
+## Optional skills
+
+`./link-skills.sh` clones the GitHub repos listed at the top of the script
+into `/tmp`, checks that every listed skill path has a `SKILL.md`, then copies
+those directories into `~/.cursor/skills/`. Edit `git_sources` and `skills` in
+the script to change the set. It writes nothing under `$HOME` until lookup
+succeeds, and it refuses to run as root.
+
+```bash
+./link-skills.sh
+```
+
+Restart `cursor-agent` afterwards. Re-running fetches again and replaces those
+skill directories.
+
 ## Update to Cursor's latest release
 
 ```bash
