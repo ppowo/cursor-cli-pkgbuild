@@ -10,12 +10,14 @@ readonly git_sources=(
   'https://github.com/mattpocock/skills'
   'https://github.com/emilkowalski/skills'
   'https://github.com/SentioLabs/pi-nexus'
+  'https://github.com/humanlayer/skills'
 )
 
 # Paths relative to a cloned repo. Each must contain SKILL.md.
 readonly skills=(
   'tech-spec'
   'bro'
+  'plugins/show-me/skills/show-me'
   'skills/productivity/grill-me'
   'skills/productivity/grilling'
   'skills/engineering/grill-with-docs'
